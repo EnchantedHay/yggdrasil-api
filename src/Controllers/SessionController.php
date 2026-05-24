@@ -176,6 +176,7 @@ class SessionController extends Controller
                     $pending = DB::table('pending_mojang_bind')
                         ->where('mojang_name', strtolower($name))
                         ->where('created_at', '>=', now()->subMinutes(15))
+                        ->orderBy('created_at', 'desc')
                         ->first();
 
                     if ($pending) {
