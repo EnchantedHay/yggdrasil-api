@@ -8,7 +8,7 @@ if (! function_exists('ygg_log_path')) {
     function ygg_log_path()
     {
         $dbConfig = config('database.connections.'.config('database.default'));
-        $mask = substr(md5(implode(',', array_values($dbConfig))), 0, 8);
+        $mask = substr(md5(json_encode($dbConfig)), 0, 8);
 
         return storage_path("logs/yggdrasil-$mask.log");
     }
