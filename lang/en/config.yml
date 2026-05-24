@@ -32,6 +32,15 @@ common:
     title: API Location Indicator
     label: Enable API Location Indicator (ALI).
 
+mojang:
+  title: Premium Account Binding (Microsoft OAuth)
+  client_id:
+    title: Azure Application (Client) ID
+    hint: Found in Azure Portal under App Registrations
+  client_secret:
+    title: Azure Client Secret
+    hint: Generate under Certificates & Secrets in Azure Portal. Copy immediately — it won't be shown again.
+
 keypair:
   title: Keypair
   ygg_private_key:

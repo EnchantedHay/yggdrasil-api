@@ -1,0 +1,76 @@
+{% extends 'user.master' %}
+
+{% block title %}绑定正版账号{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:640px; margin-top:2rem;">
+
+  {% if success %}
+  <div class="alert alert-success alert-dismissible">
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+    {{ success }}
+  </div>
+  {% endif %}
+
+  {% if error %}
+  <div class="alert alert-danger alert-dismissible">
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Minecraft 正版账号绑定</h3>
+    </div>
+    <div class="card-body">
+
+      {% if binding %}
+        {# ── 状态：已绑定 ── #}
+        <p class="mb-1">已绑定正版账号：</p>
+        <p><code>{{ binding.mojang_uuid }}</code></p>
+        <p class="text-muted">绑定后，您既可以用皮肤站账号登录，也可以用正版启动器直接进入服务器，两者在游戏内是同一个角色，皮肤和披风也会自动同步。</p>
+        <hr>
+        <form method="POST" action="{{ url('yggdrasil/mojang/unbind') }}">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-danger btn-sm"
+            onclick="return confirm('确认解除正版账号绑定？')">解除绑定</button>
+        </form>
+
+      {% elseif pending %}
+        {# ── 状态：等待验证 ── #}
+        <div class="alert alert-info">
+          <strong>等待验证中</strong><br>
+          已申请绑定正版用户名 <code>{{ pending.mojang_name }}</code>，请在 15 分钟内用正版启动器加入服务器。<br>
+          检测到您进服后将自动完成绑定，无需任何额外操作。
+        </div>
+        <form method="POST" action="{{ url('yggdrasil/mojang/cancel-bind') }}">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-secondary btn-sm">取消申请</button>
+        </form>
+
+      {% else %}
+        {# ── 状态：未绑定 ── #}
+        <p>绑定正版账号后，您可以用正版启动器（官方启动器）直接进入服务器，游戏内与皮肤站账号是同一个角色，皮肤与披风也会同步。</p>
+        <p><strong>绑定方法：</strong></p>
+        <ol>
+          <li>在下方输入您的 Minecraft 正版用户名（游戏内名字）</li>
+          <li>点击「提交」</li>
+          <li>在 15 分钟内用正版启动器加入服务器，系统检测到后自动完成绑定</li>
+        </ol>
+        <form method="POST" action="{{ url('yggdrasil/mojang/bind') }}">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+          <div class="form-group">
+            <label>Minecraft 正版用户名</label>
+            <input type="text" name="mojang_name" class="form-control"
+              placeholder="例如：Steve" maxlength="16" required
+              style="max-width:240px;">
+          </div>
+          <button type="submit" class="btn btn-primary">提交并等待验证</button>
+        </form>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}

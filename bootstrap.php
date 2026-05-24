@@ -69,6 +69,13 @@ return function (Filter $filter) {
         'icon'  => 'fa-history'
     ]);
 
+    // 向用户中心菜单添加「绑定正版账号」项目
+    Hook::addMenuItem('user', 4, [
+        'title' => 'Yggdrasil::bind.menu_title',
+        'link'  => 'yggdrasil/mojang/bind',
+        'icon'  => 'fa-gamepad'
+    ]);
+
     // 添加 API 路由
     Hook::addRoute(function () {
         Route::namespace('Yggdrasil\Controllers')
@@ -89,6 +96,17 @@ return function (Filter $filter) {
                     'plugins/config/yggdrasil-api/generate',
                     'ConfigController@generate'
                 );
+            });
+
+        // 正版绑定页面（普通用户可访问）
+        Route::middleware(['web', 'auth'])
+            ->namespace('Yggdrasil\Controllers')
+            ->prefix('yggdrasil/mojang')
+            ->group(function () {
+                Route::get('bind', 'MojangBindController@index');
+                Route::post('bind', 'MojangBindController@requestBind');
+                Route::post('cancel-bind', 'MojangBindController@cancelBind');
+                Route::post('unbind', 'MojangBindController@unbind');
             });
     });
 

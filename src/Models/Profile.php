@@ -60,6 +60,9 @@ class Profile
         // 避免 BungeeCord 服务器上可能出现无法加载材质的 Bug
         app('url')->forceRootUrl(option('site_url'));
 
+        $hasMojangBinding = Schema::hasTable('mojang_verifications') &&
+            DB::table('mojang_verifications')->where('user_id', $this->player->uid)->exists();
+
         if ($this->skin != "") {
             $textures['textures']['SKIN'] = [
                 'url' => url("textures/{$this->skin}"),
@@ -68,11 +71,8 @@ class Profile
             if ($this->model == "slim") {
                 $textures['textures']['SKIN']['metadata'] = ['model' => 'slim'];
             }
-        } elseif (
-            Schema::hasTable('mojang_verifications') &&
-            DB::table('mojang_verifications')->where('uuid', $this->uuid)->exists()
-        ) {
-            // 如果该角色没有在皮肤站设置皮肤，就从 Mojang 获取。
+        } elseif ($hasMojangBinding) {
+            // 该角色未设置皮肤，从绑定的 Mojang 账号获取。
             $skin = $this->fetchProfileFromMojang('SKIN');
             if ($skin) {
                 $textures['textures']['SKIN'] = $skin;
@@ -83,11 +83,8 @@ class Profile
             $textures['textures']['CAPE'] = [
                 'url' => url("textures/{$this->cape}")
             ];
-        } elseif (
-            Schema::hasTable('mojang_verifications') &&
-            DB::table('mojang_verifications')->where('uuid', $this->uuid)->exists()
-        ) {
-            // 如果该角色没有在皮肤站设置披风，就从 Mojang 获取。
+        } elseif ($hasMojangBinding) {
+            // 该角色未设置披风，从绑定的 Mojang 账号获取。
             $cape = $this->fetchProfileFromMojang('CAPE');
             if ($cape) {
                 $textures['textures']['CAPE'] = $cape;
@@ -174,12 +171,23 @@ class Profile
     protected function fetchProfileFromMojang($type)
     {
         $type = strtoupper($type);
-        $profile = Cache::get('mojang_profile_'.$this->uuid, function () {
+
+        $binding = DB::table('mojang_verifications')
+            ->where('user_id', $this->player->uid)
+            ->first();
+
+        if (! $binding) {
+            return null;
+        }
+
+        $mojangUuid = $binding->mojang_uuid;
+
+        $profile = Cache::get('mojang_profile_'.$mojangUuid, function () use ($mojangUuid) {
             try {
-                $response = Http::get('https://sessionserver.mojang.com/session/minecraft/profile/'.$this->uuid);
+                $response = Http::get('https://sessionserver.mojang.com/session/minecraft/profile/'.$mojangUuid);
                 if ($response->ok()) {
                     $body = $response->json();
-                    Cache::put('mojang_profile_'.$this->uuid, $body, 300);
+                    Cache::put('mojang_profile_'.$mojangUuid, $body, 300);
 
                     return $body;
                 } else {

@@ -32,6 +32,15 @@ common:
     title: API 地址指示
     label: 开启「API 地址指示 (ALI)」功能
 
+mojang:
+  title: 正版账号绑定（微软 OAuth）
+  client_id:
+    title: Azure 应用程序 (客户端) ID
+    hint: 在 Azure 门户「应用注册」中获取
+  client_secret:
+    title: Azure 客户端密码
+    hint: 在 Azure 门户「证书和密码」中生成，注意及时复制，离开页面后不再显示
+
 keypair:
   title: 密钥对配置
   ygg_private_key:
