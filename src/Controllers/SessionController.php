@@ -66,16 +66,8 @@ class SessionController extends Controller
                 throw new ForbiddenOperationException(trans('Yggdrasil::exceptions.user.banned'));
             }
 
-            // 加入服务器
-            Cache::forever("SERVER_$serverId", $selectedProfile);
-        } elseif ($this->mojangVerified($player) && $this->validateMojang($accessToken)) {
-            if ($player->user->permission == User::BANNED) {
-                throw new ForbiddenOperationException(trans('Yggdrasil::exceptions.user.banned'));
-            }
-
-            Log::channel('ygg')->info("Player [$player->name] is joining server with Mojang verified account.");
-            // 加入服务器
-            Cache::forever("SERVER_$serverId", $selectedProfile);
+            // 加入服务器，缓存 120 秒（与 hasJoinedServer 一侧对应）
+            Cache::put("SERVER_$serverId", ['profile' => $selectedProfile, 'ip' => $request->ip()], 120);
         } else {
             // 指定角色所属的用户没有签发任何令牌
             throw new ForbiddenOperationException(trans('Yggdrasil::exceptions.token.missing'));
@@ -101,19 +93,44 @@ class SessionController extends Controller
 
         Log::channel('ygg')->info("Checking if player [$name] has joined the server [$serverId] with IP [$ip]");
 
-        // 检查是否进行过 join 请求
-        if ($selectedProfile = Cache::get("SERVER_$serverId")) {
-            $profile = Profile::createFromUuid($selectedProfile);
+        // 检查是否进行过外置登录的 join 请求
+        if ($session = Cache::get("SERVER_$serverId")) {
+            $cachedProfile = is_array($session) ? ($session['profile'] ?? null) : $session;
+            $cachedIp     = is_array($session) ? ($session['ip'] ?? null) : null;
 
-            // TODO: 检查 IP 地址
-            if ($name === $profile->name) {
-                // 检查完成后马上删除缓存键值对
+            $profile = $cachedProfile ? Profile::createFromUuid($cachedProfile) : null;
+
+            if ($profile && $name === $profile->name) {
+                // IP 校验：双方都有 IP 时才比对，任一方没有则跳过
+                if ($ip && $cachedIp && $ip !== $cachedIp) {
+                    Log::channel('ygg')->warning("Player [$name] IP mismatch: expected [$cachedIp], got [$ip]");
+                    return response('')->setStatusCode(204);
+                }
+
                 Cache::forget("SERVER_$serverId");
                 Log::channel('ygg')->info("Player [$name] was in the server [$serverId]");
 
-                // 这里返回的 Profile 必须带材质的数据签名
                 $response = $profile->serialize(false);
                 Log::channel('ygg')->info("Returning player [$name]'s profile", [$response]);
+
+                ygg_log(array_merge([
+                    'action' => 'has_joined',
+                    'user_id' => $profile->player->uid,
+                    'player_id' => $profile->player->pid,
+                    'parameters' => json_encode($request->except('username')),
+                ], ($ip ? compact('ip') : [])));
+
+                return response()->json()->setContent($response);
+            }
+        }
+
+        // 外置缓存未命中，尝试向 Mojang 转发验证（正版账号回落）
+        if (Schema::hasTable('mojang_verifications')) {
+            $profile = $this->hasJoinedMojang($name, $serverId);
+            if ($profile) {
+                Log::channel('ygg')->info("Player [$name] verified via Mojang, returning bound profile [{$profile->name}]");
+
+                $response = $profile->serialize(false);
 
                 ygg_log(array_merge([
                     'action' => 'has_joined',
@@ -130,24 +147,77 @@ class SessionController extends Controller
         return response('')->setStatusCode(204);
     }
 
-    protected function mojangVerified($player)
-    {
-        if (! Schema::hasTable('mojang_verifications')) {
-            return false;
-        }
-
-        return DB::table('mojang_verifications')->where('user_id', $player->uid)->exists();
-    }
-
-    protected function validateMojang($accessToken)
+    protected function hasJoinedMojang(string $name, string $serverId): ?Profile
     {
         try {
-            $response = Http::post('https://authserver.mojang.com/validate', [
-                'json' => ['accessToken' => $accessToken],
+            $response = Http::get('https://sessionserver.mojang.com/session/minecraft/hasJoined', [
+                'username' => $name,
+                'serverId' => $serverId,
             ]);
-            return $response->status() === 204;
+
+            if ($response->status() !== 200) {
+                return null;
+            }
+
+            $mojangUuid = str_replace('-', '', $response->json('id') ?? '');
+            if (! $mojangUuid) {
+                return null;
+            }
+
+            Log::channel('ygg')->info("Mojang verified player [$name] with uuid [$mojangUuid]");
+
+            $binding = DB::table('mojang_verifications')
+                ->where('mojang_uuid', $mojangUuid)
+                ->first();
+
+            if (! $binding) {
+                // 检查是否有等待中的绑定申请，有则自动完成绑定
+                if (Schema::hasTable('pending_mojang_bind')) {
+                    $pending = DB::table('pending_mojang_bind')
+                        ->where('mojang_name', strtolower($name))
+                        ->where('created_at', '>=', now()->subMinutes(15))
+                        ->first();
+
+                    if ($pending) {
+                        $pendingUser = User::find($pending->user_id);
+                        $pendingPlayer = $pendingUser && $pendingUser->permission != User::BANNED
+                            ? Player::where('uid', $pending->user_id)->first()
+                            : null;
+
+                        if ($pendingPlayer) {
+                            DB::table('mojang_verifications')->updateOrInsert(
+                                ['user_id' => $pending->user_id],
+                                ['mojang_uuid' => $mojangUuid]
+                            );
+                            DB::table('pending_mojang_bind')
+                                ->where('user_id', $pending->user_id)
+                                ->delete();
+
+                            Log::channel('ygg')->info("Auto-bound Mojang [$mojangUuid / $name] to bs user [{$pending->user_id}]");
+                            return Profile::createFromPlayer($pendingPlayer);
+                        }
+                    }
+                }
+
+                Log::channel('ygg')->info("Mojang uuid [$mojangUuid] has no binding, rejecting.");
+                return null;
+            }
+
+            $user = User::find($binding->user_id);
+            if (! $user || $user->permission == User::BANNED) {
+                return null;
+            }
+
+            $player = Player::where('uid', $binding->user_id)->first();
+            if (! $player) {
+                return null;
+            }
+
+            return Profile::createFromPlayer($player);
         } catch (\Exception $e) {
-            return false;
+            Log::channel('ygg')->warning("Mojang hasJoined forwarding failed: " . $e->getMessage());
+            return null;
         }
     }
+
 }

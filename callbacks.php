@@ -24,6 +24,23 @@ return [
             });
         }
 
+        if (! Schema::hasTable('mojang_verifications')) {
+            Schema::create('mojang_verifications', function ($table) {
+                $table->increments('id');
+                $table->integer('user_id')->unique();
+                $table->string('mojang_uuid', 32)->unique();
+            });
+        }
+
+        if (! Schema::hasTable('pending_mojang_bind')) {
+            Schema::create('pending_mojang_bind', function ($table) {
+                $table->increments('id');
+                $table->integer('user_id')->unique();
+                $table->string('mojang_name', 16);
+                $table->dateTime('created_at');
+            });
+        }
+
         $items = [
             'ygg_uuid_algorithm' => 'v3',
             'ygg_token_expire_1' => '259200', // 3 days
@@ -34,7 +51,7 @@ return [
             'ygg_private_key' => '',
             'ygg_show_config_section' => 'true',
             'ygg_show_activities_section' => 'true',
-            'ygg_enable_ali' => 'true'
+            'ygg_enable_ali' => 'true',
         ];
 
         foreach ($items as $key => $value) {
