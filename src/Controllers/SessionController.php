@@ -185,6 +185,10 @@ class SessionController extends Controller
                             ? Player::where('uid', $pending->user_id)->first()
                             : null;
 
+                        if (! $pendingPlayer) {
+                            Log::channel('ygg')->warning("Pending bind for user [{$pending->user_id}] has no player character — create a character on the skin server first.");
+                        }
+
                         if ($pendingPlayer) {
                             DB::table('mojang_verifications')->updateOrInsert(
                                 ['user_id' => $pending->user_id],
@@ -211,6 +215,7 @@ class SessionController extends Controller
 
             $player = Player::where('uid', $binding->user_id)->first();
             if (! $player) {
+                Log::channel('ygg')->warning("Bound user [{$binding->user_id}] has no player character — create a character on the skin server.");
                 return null;
             }
 

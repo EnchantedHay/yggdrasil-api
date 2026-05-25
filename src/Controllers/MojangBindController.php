@@ -4,6 +4,7 @@ namespace Yggdrasil\Controllers;
 
 use DB;
 use Schema;
+use App\Models\Player;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
@@ -24,11 +25,14 @@ class MojangBindController extends Controller
                 ->first()
             : null;
 
+        $hasPlayer = Player::where('uid', $uid)->exists();
+
         return view('Yggdrasil::bind', [
-            'binding' => $binding,
-            'pending' => $pending,
-            'success' => session('success'),
-            'error'   => session('error'),
+            'binding'   => $binding,
+            'pending'   => $pending,
+            'hasPlayer' => $hasPlayer,
+            'success'   => session('success'),
+            'error'     => session('error'),
         ]);
     }
 
@@ -42,6 +46,11 @@ class MojangBindController extends Controller
         }
 
         $uid = auth()->user()->uid;
+
+        if (! Player::where('uid', $uid)->exists()) {
+            return redirect(url('yggdrasil/mojang/bind'))
+                ->with('error', '请先在角色管理页面创建一个角色，再进行正版账号绑定。');
+        }
 
         if (Schema::hasTable('mojang_verifications') &&
             DB::table('mojang_verifications')->where('user_id', $uid)->exists()) {
