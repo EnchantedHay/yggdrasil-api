@@ -2,6 +2,8 @@
 
 本插件基本实现了 [Yggdrasil API 规范](https://github.com/yushijinhun/authlib-injector/wiki/Yggdrasil%20%E6%9C%8D%E5%8A%A1%E7%AB%AF%E6%8A%80%E6%9C%AF%E8%A7%84%E8%8C%83)，可与 [authlib-injector](https://github.com/to2mbn/authlib-injector) 等 authlib hook 配合使用实现外置登录系统。
 
+Fork：加入了正版绑定，持有皮肤站账号的玩家可以绑定一个正版账号，使用该正版账号登录视为使用皮肤站绑定账号登录。
+
 ## API 路由
 
 ```
