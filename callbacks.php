@@ -37,7 +37,13 @@ return [
                 $table->increments('id');
                 $table->integer('user_id')->unique();
                 $table->string('mojang_name', 16);
+                $table->string('mojang_uuid', 32)->nullable();
                 $table->dateTime('created_at');
+            });
+        } elseif (! Schema::hasColumn('pending_mojang_bind', 'mojang_uuid')) {
+            // 旧版本升级：补上绑定申请时解析出的正版 UUID 列
+            Schema::table('pending_mojang_bind', function ($table) {
+                $table->string('mojang_uuid', 32)->nullable();
             });
         }
 

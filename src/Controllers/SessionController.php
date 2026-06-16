@@ -173,11 +173,24 @@ class SessionController extends Controller
             if (! $binding) {
                 // 检查是否有等待中的绑定申请，有则自动完成绑定
                 if (Schema::hasTable('pending_mojang_bind')) {
-                    $pending = DB::table('pending_mojang_bind')
-                        ->where('mojang_name', strtolower($name))
-                        ->where('created_at', '>=', now()->subMinutes(15))
-                        ->orderBy('created_at', 'desc')
-                        ->first();
+                    $query = DB::table('pending_mojang_bind')
+                        ->where('created_at', '>=', now()->subMinutes(15));
+
+                    if (Schema::hasColumn('pending_mojang_bind', 'mojang_uuid')) {
+                        // 优先按 UUID 匹配：不受大小写、改名影响。
+                        // 旧的、没有 UUID 的申请记录则回退到按名字（忽略大小写）匹配。
+                        $query->where(function ($q) use ($mojangUuid, $name) {
+                            $q->where('mojang_uuid', $mojangUuid)
+                                ->orWhere(function ($q2) use ($name) {
+                                    $q2->whereNull('mojang_uuid')
+                                        ->whereRaw('LOWER(mojang_name) = ?', [strtolower($name)]);
+                                });
+                        });
+                    } else {
+                        $query->whereRaw('LOWER(mojang_name) = ?', [strtolower($name)]);
+                    }
+
+                    $pending = $query->orderBy('created_at', 'desc')->first();
 
                     if ($pending) {
                         $pendingUser = User::find($pending->user_id);
