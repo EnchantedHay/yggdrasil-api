@@ -55,3 +55,30 @@ keypair:
 rsa:
   invalid: Invalid RSA private key. Please re-configure it.
   length: The length of RSA private key must be greater than 4096. Please re-configure it.
+
+union:
+  title: MUA Union Authentication
+  api_root:
+    title: Union API Root
+    hint: The root URL of the MUA central server. Leave default if you don't know what this is.
+  member_key:
+    title: Union Member Key
+    hint: Issued by mualliance after your site joins the union. Leave blank to disable union sync.
+  enable_update:
+    title: Auto Update
+    label: Allow the central server to push server list / shared private key updates.
+  data:
+    title: Union Data Manual Sync
+    label: Incremental sync runs automatically via event hooks; trigger these manually only on first onboarding or when you suspect data drift.
+    trigger_update_list: Pull server list
+    trigger_update_key: Pull shared private key
+    trigger_sync: Push all local players
+    trigger_diagnose: Network diagnose
+    success: '{action} dispatched.'
+    failed: '{action} failed: {message}'
+
+restore:
+  title: Multi-backend Restore
+  enable:
+    title: /restore endpoint
+    label: Expose POST /api/yggdrasil/restore for cross-site profile re-signing (required by MUA union).

@@ -12,6 +12,21 @@
   <div class="row">
     <div class="col-md-6">
       {{ forms.common|raw }}
+      {{ forms.union|raw }}
+      <div class="card card-success">
+        <div class="card-header">
+          <h3 class="card-title">{{ trans('Yggdrasil::config.union.data.title') }}</h3>
+        </div>
+        <div class="card-body">
+          <p>{{ trans('Yggdrasil::config.union.data.label') }}</p>
+          <button id="union-update-list" type="button" class="btn btn-default" onClick="unionAction('updatelist', '{{ trans('Yggdrasil::config.union.data.trigger_update_list') }}')">{{ trans('Yggdrasil::config.union.data.trigger_update_list') }}</button>
+          <button id="union-update-key"  type="button" class="btn btn-default" onClick="unionAction('updateprivatekey', '{{ trans('Yggdrasil::config.union.data.trigger_update_key') }}')">{{ trans('Yggdrasil::config.union.data.trigger_update_key') }}</button>
+          <button id="union-sync"        type="button" class="btn btn-default" onClick="unionAction('sync', '{{ trans('Yggdrasil::config.union.data.trigger_sync') }}')">{{ trans('Yggdrasil::config.union.data.trigger_sync') }}</button>
+          <button id="union-diagnose"    type="button" class="btn btn-default" onClick="unionAction('diagnose', '{{ trans('Yggdrasil::config.union.data.trigger_diagnose') }}')">{{ trans('Yggdrasil::config.union.data.trigger_diagnose') }}</button>
+          <pre id="union-action-output" class="mt-3 mb-0" style="display:none; max-height: 240px; overflow:auto; background:#f4f4f4; padding:8px; border-radius:4px; font-size:12px;"></pre>
+        </div>
+      </div>
+      {{ forms.restore|raw }}
     </div>
     <div class="col-md-6">
       <div class="card card-success">
@@ -27,4 +42,19 @@
       {{ forms.keypair|raw }}
     </div>
   </div>
+
+  <script>
+    function unionAction(action, label) {
+      const out = document.getElementById('union-action-output');
+      out.style.display = 'block';
+      out.textContent = label + ' ...';
+      blessing.fetch.post('/admin/union/member/' + action)
+        .then((response) => {
+          out.textContent = label + ' ✔\n' + JSON.stringify(response, null, 2);
+        })
+        .catch((err) => {
+          out.textContent = label + ' ✘\n' + (err && err.message ? err.message : JSON.stringify(err, null, 2));
+        });
+    }
+  </script>
 {% endblock %}

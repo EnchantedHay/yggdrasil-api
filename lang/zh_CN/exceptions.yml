@@ -20,3 +20,6 @@ auth:
   not-matched: 输入的邮箱与密码不匹配
 
 uuid: '无效的 Profile UUID [:profile]，它不属于任何角色'
+
+restore:
+  api_disabled: 本站未启用 /restore 端点

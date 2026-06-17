@@ -58,6 +58,14 @@ return [
             'ygg_show_config_section' => 'true',
             'ygg_show_activities_section' => 'true',
             'ygg_enable_ali' => 'true',
+            'ygg_restore_api' => 'true',
+            // MUA 联合认证
+            'union_api_root' => 'https://skin.mualliance.ltd/api/union',
+            'union_member_key' => '',
+            'union_server_list' => '{}',
+            'union_server_list_version' => '0',
+            'union_private_key_version' => '0',
+            'union_enable_update' => 'true',
         ];
 
         foreach ($items as $key => $value) {

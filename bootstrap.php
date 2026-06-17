@@ -1,11 +1,18 @@
 <?php
 
+use App\Events\PlayerWasAdded;
+use App\Events\PlayerWillBeDeleted;
 use App\Services\Hook;
 use Blessing\Filter;
+use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Yggdrasil\Models\Profile;
 
 require __DIR__.'/src/Utils/helpers.php';
 
-return function (Filter $filter) {
+return function (Filter $filter, Dispatcher $events) {
     if (env('YGG_VERBOSE_LOG')) {
         config(['logging.channels.ygg' => [
             'driver' => 'single',
@@ -52,6 +59,75 @@ return function (Filter $filter) {
         App\Models\Player::updating($callback);
     }
 
+    // ===== MUA 联合认证：把角色变更同步给中央服务器 =====
+    // 仅当配置了 union_member_key 时才尝试同步，避免本地开发/未入盟环境无意义请求。
+    $unionPush = function (string $method, string $url, array $payload = null) {
+        if (option('union_member_key') === '') {
+            return;
+        }
+        try {
+            $req = Http::timeout(5.0)->withHeaders(['X-Union-Member-Key' => option('union_member_key')]);
+            $response = $payload === null ? $req->{$method}($url) : $req->{$method}($url, $payload);
+            if (! $response->successful()) {
+                Log::channel('ygg')->info('Union sync failed.', [
+                    'method' => $method, 'url' => $url, 'status' => $response->status(),
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::channel('ygg')->info('Union sync exception: '.$e->getMessage(), ['url' => $url]);
+        }
+    };
+
+    $events->listen(PlayerWasAdded::class, function ($event) use ($unionPush) {
+        $player = $event->player;
+        $uuid = Profile::getUuidFromName($player->name);
+        $unionPush('post', option('union_api_root').'/profile', [
+            'id' => $uuid,
+            'name' => $player->name,
+        ]);
+        Log::channel('ygg')->info("Player [$player->name] added; union sync issued.");
+    });
+
+    $events->listen(PlayerWillBeDeleted::class, function ($event) use ($unionPush) {
+        $player = $event->player;
+        // 这里走 uuid 表直查，避免 getUuidFromName 在角色被删后命中空映射时再分配一个新 UUID
+        $row = DB::table('uuid')->where('name', $player->name)->first();
+        if ($row) {
+            $unionPush('delete', option('union_api_root').'/profile/'.$row->uuid);
+            Log::channel('ygg')->info("Player [$player->name] deleted; union sync issued.");
+        }
+    });
+
+    // 角色改名：分两种情况对齐到中央服务器。
+    //   - v4 算法：fork 的 updating 钩子已经把 (old_name, old_uuid) 原地改成 (new_name, old_uuid)，
+    //     UUID 不变，用 PUT /profile/{uuid} 改名即可。
+    //   - v3 算法：新名字会重新计算出一个新 UUID（name 的 namespaced hash），
+    //     旧 UUID 与新 UUID 不同，需要 DELETE 旧 + POST 新。
+    $events->listen('player.renamed', function ($player, $old) use ($unionPush) {
+        if (! $old || $old->name === $player->name) {
+            return;
+        }
+
+        $newUuid = Profile::getUuidFromName($player->name);
+        $oldRow = DB::table('uuid')->where('name', $old->name)->first();
+
+        if ($oldRow && $oldRow->uuid !== $newUuid) {
+            // v3 路径：旧 UUID 还在表里（updating 钩子未启用）
+            $unionPush('delete', option('union_api_root').'/profile/'.$oldRow->uuid);
+            $unionPush('post', option('union_api_root').'/profile', [
+                'id' => $newUuid,
+                'name' => $player->name,
+            ]);
+        } else {
+            // v4 路径：UUID 不变，只是改名
+            $unionPush('put', option('union_api_root').'/profile/'.$newUuid, [
+                'name' => $player->name,
+            ]);
+        }
+
+        Log::channel('ygg')->info("Player renamed [{$old->name} -> {$player->name}]; union sync issued.");
+    });
+
     // 向用户中心首页添加「快速配置启动器」板块
     if (option('ygg_show_config_section')) {
         $filter->add('grid:user.index', function ($grid) {
@@ -86,6 +162,23 @@ return function (Filter $filter) {
                 require __DIR__.'/routes.php';
             });
 
+        // ===== MUA 联合认证：受信入站回调（中央服务器带签名访问） =====
+        Route::namespace('Yggdrasil\Controllers')->group(function () {
+            Route::middleware(['Yggdrasil\Middleware\UnionHostVerify'])
+                ->prefix('api/union/member')
+                ->group(function () {
+                    Route::post('updatelist',       'UnionController@updateList');
+                    Route::post('updateprivatekey', 'UnionController@updatePrivateKey');
+                    Route::post('updatebackendkey', 'UnionController@serverUpdatesBackendKey');
+                    Route::post('sync',             'UnionController@triggerSync');
+                    Route::post('remapuuid',        'UnionController@remapUUID');
+                    Route::post('diagnose',         'UnionController@diagnose');
+                });
+
+            // 联盟 hello（无需签名，供中央服务器轮询版本号）
+            Route::get('api/union/member', 'UnionController@hello');
+        });
+
         Route::middleware(['web', 'auth', 'role:admin'])
             ->namespace('Yggdrasil\Controllers')
             ->prefix('admin')
@@ -96,6 +189,14 @@ return function (Filter $filter) {
                     'plugins/config/yggdrasil-api/generate',
                     'ConfigController@generate'
                 );
+
+                // 管理员手动触发联盟同步
+                Route::prefix('union')->group(function () {
+                    Route::post('member/updatelist',       'UnionController@updateList');
+                    Route::post('member/updateprivatekey', 'UnionController@updatePrivateKey');
+                    Route::post('member/sync',             'UnionController@triggerSync');
+                    Route::post('member/diagnose',         'UnionController@triggerDiagnose');
+                });
             });
 
         // 正版绑定页面（普通用户可访问）

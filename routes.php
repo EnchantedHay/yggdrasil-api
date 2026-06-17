@@ -24,3 +24,7 @@ Route::prefix('sessionserver/session/minecraft')->group(function () {
 });
 
 Route::post('api/profiles/minecraft', 'ProfileController@searchProfile');
+
+// MUA 联合认证 multi-backend 重签端点
+Route::get ('restore', 'MultiBackendController@hello');
+Route::post('restore', 'MultiBackendController@restore');

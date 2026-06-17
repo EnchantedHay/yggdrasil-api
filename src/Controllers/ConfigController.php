@@ -56,10 +56,29 @@ class ConfigController extends Controller
             $keypairForm->addMessage(trans('Yggdrasil::config.keypair.ygg_private_key.invalid'), 'danger');
         }
 
+        $unionForm = Option::form('union', trans('Yggdrasil::config.union.title'), function (OptionForm $form) {
+            $form->text('union_api_root', trans('Yggdrasil::config.union.api_root.title'))
+                ->hint(trans('Yggdrasil::config.union.api_root.hint'));
+            $form->text('union_member_key', trans('Yggdrasil::config.union.member_key.title'))
+                ->hint(trans('Yggdrasil::config.union.member_key.hint'));
+            $form->checkbox('union_enable_update', trans('Yggdrasil::config.union.enable_update.title'))
+                ->label(trans('Yggdrasil::config.union.enable_update.label'));
+        })->handle();
+
+        $restoreForm = Option::form('restore', trans('Yggdrasil::config.restore.title'), function (OptionForm $form) {
+            $form->checkbox('ygg_restore_api', trans('Yggdrasil::config.restore.enable.title'))
+                ->label(trans('Yggdrasil::config.restore.enable.label'));
+        })->handle();
+
         Hook::addScriptFileToPage(plugin('yggdrasil-api')->assets('config.js'));
 
         return view('Yggdrasil::config', [
-            'forms' => ['common' => $commonForm, 'keypair' => $keypairForm],
+            'forms' => [
+                'common' => $commonForm,
+                'keypair' => $keypairForm,
+                'union' => $unionForm,
+                'restore' => $restoreForm,
+            ],
         ]);
     }
 
@@ -91,6 +110,10 @@ class ConfigController extends Controller
                 'serverName' => option_localized('site_name'),
                 'implementationName' => 'Yggdrasil API for Blessing Skin',
                 'implementationVersion' => plugin('yggdrasil-api')->version,
+                'serverListVersion' => option('union_server_list_version'),
+                'privateKeyVersion' => option('union_private_key_version'),
+                // 暂未启用任何联盟扩展（blacklist / OAuth2），保持空数组
+                'enabledFeatures' => [],
                 'links' => [
                     'homepage' => url('/')
                 ]

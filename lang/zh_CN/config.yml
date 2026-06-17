@@ -55,3 +55,30 @@ keypair:
 rsa:
   invalid: 无效的 RSA 私钥，请访问插件配置页重新设置
   length: RSA 私钥的长度至少为 4096，请访问插件配置页重新设置
+
+union:
+  title: MUA 联合认证
+  api_root:
+    title: 联盟 API 根地址
+    hint: MUA 联盟中央服务器的根地址，不清楚保持默认即可
+  member_key:
+    title: 联盟成员密钥（Member Key）
+    hint: 加入 MUA 联盟后由中央服务器签发；留空则不启用联盟同步
+  enable_update:
+    title: 自动更新
+    label: 允许中央服务器推送站点列表与联盟共享私钥的更新
+  data:
+    title: 联盟数据手动同步
+    label: 增量同步通过事件钩子自动完成；初次接入或怀疑数据漂移时可手动触发以下操作。
+    trigger_update_list: 拉取站点列表
+    trigger_update_key: 拉取共享私钥
+    trigger_sync: 全量推送本站角色
+    trigger_diagnose: 网络诊断
+    success: 已发起 {action}。
+    failed: '操作 {action} 失败：{message}'
+
+restore:
+  title: 跨站重签端点
+  enable:
+    title: /restore 端点
+    label: 暴露 POST /api/yggdrasil/restore 用于跨站 profile 重签（接入 MUA 联盟时必须开启）
